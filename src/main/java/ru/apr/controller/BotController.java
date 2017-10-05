@@ -1,12 +1,13 @@
-package ru.apr;
+package ru.apr.controller;
 
-import org.glassfish.jersey.jaxb.internal.XmlCollectionJaxbProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.TelegramBotsApi;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
+import ru.apr.entity.MallRatBot;
+import ru.apr.MallratbotApplication;
 
 import javax.annotation.PostConstruct;
 
@@ -26,9 +27,5 @@ public class BotController {
         } catch (TelegramApiException e) {
             MallratbotApplication.logger.error(e.getMessage());
         }
-    }
-
-    void start(){
-
     }
 }
