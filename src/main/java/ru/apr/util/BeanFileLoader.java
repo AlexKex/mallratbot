@@ -23,15 +23,8 @@ public class BeanFileLoader {
 
     private String beanName;
 
-    public String getBeanName() {
-        return beanName;
-    }
-
-    public void setBeanName(String beanName) {
-        this.beanName = beanName;
-    }
-
-    public ApplicationContext getModuleContext(){
+    public ApplicationContext getModuleContext(String moduleName){
+        beanName = moduleName;
         File contextFile = new File(beanPath + beanName + "_" + locale + ".xml");
         ApplicationContext moduleContext = null;
 
