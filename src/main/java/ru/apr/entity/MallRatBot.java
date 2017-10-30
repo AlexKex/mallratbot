@@ -14,6 +14,8 @@ import ru.apr.entity.dialogue.Dialogue;
 import ru.apr.entity.dialogue.Messaging;
 import ru.apr.util.BeanFileLoader;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 
 @Component
@@ -66,8 +68,24 @@ public class MallRatBot extends TelegramLongPollingBot {
                         conversations.remove(msg.getUserId());
                     }
 
+                    int currentStep = dialogueAdd.getCurrentStep();
+
                     conversations.put(msg.getUserId(), dialogueAdd);
                     SendMessage addMessage = msg.prepareMessage(dialogueAdd.proceedConversation());
+
+                    // invoke a callback in the end of current step
+                    if(dialogueAdd.getCallbackMap() != null && dialogueAdd.getCallbackMap().containsKey(currentStep)){
+                        try {
+                            Method classMethod = Dialogue.class.getMethod(dialogueAdd.getCallbackMap().get(currentStep));
+                            classMethod.invoke(dialogueAdd);
+                        } catch (IllegalAccessException e) {
+                            MallratbotApplication.logger.error(e.getMessage());
+                        } catch (NoSuchMethodException e) {
+                            MallratbotApplication.logger.error(e.getMessage());
+                        } catch (InvocationTargetException e) {
+                            MallratbotApplication.logger.error(e.getMessage());
+                        }
+                    }
 
                     try {
                         sendMessage(addMessage); // Call method to send the message

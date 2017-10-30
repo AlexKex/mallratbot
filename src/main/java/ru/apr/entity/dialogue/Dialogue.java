@@ -11,6 +11,7 @@ public class Dialogue {
     private Integer userId = 0;
     private Map<Integer, String> stepText;
     private Map<Integer, Integer> stepMap;
+    private Map<Integer, String> callbackMap;
     private String dialogueType;
 
     public Integer getCurrentStep() {
@@ -37,8 +38,16 @@ public class Dialogue {
         this.stepMap = stepMap;
     }
 
+    public Map<Integer, String> getCallbackMap() {
+        return callbackMap;
+    }
 
-    public String proceedConversation(){
+    public void setCallbackMap(Map<Integer, String> callbackMap) {
+        this.callbackMap = callbackMap;
+    }
+
+
+    public String proceedConversation() {
         String messageText = stepText.get(currentStep);
 
         // научить выполнять действие в зависимости от типа
