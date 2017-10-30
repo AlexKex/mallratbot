@@ -1,5 +1,6 @@
 package ru.apr.entity;
 
+import com.sun.corba.se.spi.ior.ObjectKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
@@ -41,6 +42,8 @@ public class MallRatBot extends TelegramLongPollingBot {
         msg.setIncomingMessageUpdate(update);
 
         BeanFileLoader loader = context.getBean(BeanFileLoader.class);
+        Dialogue currentDialogue = null;
+        int currentStep = 0;
 
         if(msg.getCommand() != null) {
             switch (msg.getCommand()) {
@@ -60,32 +63,18 @@ public class MallRatBot extends TelegramLongPollingBot {
                 // add new shopping list
                 case "/add":
                     ApplicationContext dialogModuleContext = loader.getModuleContext("dialogue_add");
-                    Dialogue dialogueAdd = dialogModuleContext.getBean(Dialogue.class);
-                    dialogueAdd.setUserId(msg.getUserId());
-                    dialogueAdd.setDialogueType("ADD");
+                    currentDialogue = dialogModuleContext.getBean(Dialogue.class);
+                    currentDialogue.setUserId(msg.getUserId());
+                    currentDialogue.setDialogueType("ADD");
 
                     if(conversations.containsKey(msg.getUserId())){
                         conversations.remove(msg.getUserId());
                     }
 
-                    int currentStep = dialogueAdd.getCurrentStep();
+                    currentStep = currentDialogue.getCurrentStep();
 
-                    conversations.put(msg.getUserId(), dialogueAdd);
-                    SendMessage addMessage = msg.prepareMessage(dialogueAdd.proceedConversation());
-
-                    // invoke a callback in the end of current step
-                    if(dialogueAdd.getCallbackMap() != null && dialogueAdd.getCallbackMap().containsKey(currentStep)){
-                        try {
-                            Method classMethod = Dialogue.class.getMethod(dialogueAdd.getCallbackMap().get(currentStep));
-                            classMethod.invoke(dialogueAdd);
-                        } catch (IllegalAccessException e) {
-                            MallratbotApplication.logger.error(e.getMessage());
-                        } catch (NoSuchMethodException e) {
-                            MallratbotApplication.logger.error(e.getMessage());
-                        } catch (InvocationTargetException e) {
-                            MallratbotApplication.logger.error(e.getMessage());
-                        }
-                    }
+                    conversations.put(msg.getUserId(), currentDialogue);
+                    SendMessage addMessage = msg.prepareMessage(currentDialogue.proceedConversation());
 
                     try {
                         sendMessage(addMessage); // Call method to send the message
@@ -124,7 +113,7 @@ public class MallRatBot extends TelegramLongPollingBot {
 
                 default:
                     if(conversations.containsKey(msg.getUserId())){
-                        Dialogue currentDialogue = conversations.get(msg.getUserId());
+                        currentDialogue = conversations.get(msg.getUserId());
                         SendMessage proceedMessage = msg.prepareMessage(currentDialogue.proceedConversation());
 
                         try {
@@ -148,6 +137,8 @@ public class MallRatBot extends TelegramLongPollingBot {
                     }
                     break;
             }
+
+            invokeCallback(currentDialogue, currentStep);
         }
     }
 
@@ -163,5 +154,61 @@ public class MallRatBot extends TelegramLongPollingBot {
 
     public static HashMap<Integer, Dialogue> getConversations() {
         return conversations;
+    }
+
+    /**
+     * Invokes a callback for a step
+     * @param dialogue Dialogue instance
+     * @param step step number
+     */
+    private void invokeCallback(Dialogue dialogue, int step){
+        if(dialogue != null && dialogue.getCallbackMap() != null && dialogue.getCallbackMap().containsKey(step)){
+            try {
+                String callback = dialogue.getCallbackMap().get(step);
+                Class callbackClassInstance = null;
+                String callbackClassInstanceString = "";
+                String methodName = "";
+
+                String[] splitted = callback.split("\\.");
+
+                if(splitted.length > 1){
+                    for(int i = 0; i < splitted.length - 1; i++){
+                        if(i != splitted.length-1){
+                            callbackClassInstanceString += splitted[i];
+                        }
+
+                        if(i != splitted.length-2)
+                            callbackClassInstanceString += ".";
+                    }
+
+                    try {
+                        callbackClassInstance = Class.forName(callbackClassInstanceString);
+                    } catch (ClassNotFoundException e) {
+                        MallratbotApplication.logger.error("Class not found " + e.getMessage());
+                    }
+
+                    methodName = splitted[splitted.length-1];
+                }
+                else{
+                    callbackClassInstance = Dialogue.class;
+                    methodName = callback;
+                }
+
+                Method classMethod = callbackClassInstance.getMethod(methodName);
+                classMethod.invoke(callbackClassInstance.newInstance());
+            }
+            catch(IllegalArgumentException e){
+                MallratbotApplication.logger.error("Malformed classname. " + e.getMessage());
+            }
+              catch (IllegalAccessException e) {
+                MallratbotApplication.logger.error("Illegal access. " + e.getMessage());
+            } catch (NoSuchMethodException e) {
+                MallratbotApplication.logger.error("No such method. " + e.getMessage());
+            } catch (InvocationTargetException e) {
+                MallratbotApplication.logger.error(e.getMessage());
+            } catch (InstantiationException e) {
+                MallratbotApplication.logger.error("Can't create an instance" + e.getMessage());
+            }
+        }
     }
 }
