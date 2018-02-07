@@ -5,15 +5,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 import ru.apr.MallratbotApplication;
 import ru.apr.entity.dialogue.Answer;
 import ru.apr.entity.dialogue.Dialogue;
-import ru.apr.entity.dialogue.Messaging;
-import ru.apr.util.BeanFileLoader;
+import ru.apr.messaging.Sendable;
+import ru.apr.messagingStrategy.MessagingStrategy;
+import ru.apr.messagingStrategy.StaticAnswerStrategy;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -38,107 +38,26 @@ public class MallRatBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
-        Messaging msg = context.getBean(Messaging.class);
-        msg.setIncomingMessageUpdate(update);
+        MessagingStrategy messagingStrategy;
+        Sendable telegramMessage;
 
-        BeanFileLoader loader = context.getBean(BeanFileLoader.class);
-        Dialogue currentDialogue = null;
-        int currentStep = 0;
-
-        if(msg.getCommand() != null) {
-            switch (msg.getCommand()) {
+        if(update.getMessage().getText() != null) {
+            switch (update.getMessage().getText()){
                 case "/start":
-                    ApplicationContext moduleContext = loader.getModuleContext("answer");
-                    answer = moduleContext.getBean(Answer.class);
-
-                    SendMessage message = msg.prepareMessage(answer.getGreetings());
-
-                    try {
-                        sendMessage(message); // Call method to send the message
-                    } catch (TelegramApiException e) {
-                        MallratbotApplication.logger.error(e.getMessage());
-                    }
+                    messagingStrategy = context.getBean(StaticAnswerStrategy.class);
+                    telegramMessage = messagingStrategy.messageConstruct(update);
                     break;
-
-                // add new shopping list
-                case "/add":
-                    ApplicationContext dialogModuleContext = loader.getModuleContext("dialogue_add");
-                    currentDialogue = dialogModuleContext.getBean(Dialogue.class);
-                    currentDialogue.setUserId(msg.getUserId());
-                    currentDialogue.setDialogueType("ADD");
-
-                    if(conversations.containsKey(msg.getUserId())){
-                        conversations.remove(msg.getUserId());
-                    }
-
-                    currentStep = currentDialogue.getCurrentStep();
-
-                    conversations.put(msg.getUserId(), currentDialogue);
-                    SendMessage addMessage = msg.prepareMessage(currentDialogue.proceedConversation());
-
-                    try {
-                        sendMessage(addMessage); // Call method to send the message
-                    } catch (TelegramApiException e) {
-                        MallratbotApplication.logger.error(e.getMessage());
-                    }
-                    break;
-
-                // add user to shopping list
-                case "/permit":
-                    break;
-
-                // show list subscribers
-                case "/sub":
-                    break;
-
-                // revoke permission
-                case "/revoke":
-                    break;
-
-                // show available lists
-                case "/show":
-                    break;
-
-                // show active list
-                case "/list":
-                    break;
-
-                // put item to the basket
-                case "/put":
-                    break;
-
-                // remove item from the basket (bought or deleted)
-                case "/remove":
-                    break;
-
                 default:
-                    if(conversations.containsKey(msg.getUserId())){
-                        currentDialogue = conversations.get(msg.getUserId());
-                        SendMessage proceedMessage = msg.prepareMessage(currentDialogue.proceedConversation());
-
-                        try {
-                            sendMessage(proceedMessage); // Call method to send the message
-                        } catch (TelegramApiException e) {
-                            MallratbotApplication.logger.error(e.getMessage());
-                        }
-                        break;
-                    }
-                    else{
-                        ApplicationContext errorContext = loader.getModuleContext("answer");
-                        answer = errorContext.getBean(Answer.class);
-
-                        SendMessage errorMessage = msg.prepareMessage(answer.getParseMessageError());
-
-                        try {
-                            sendMessage(errorMessage); // Call method to send the message
-                        } catch (TelegramApiException e) {
-                            MallratbotApplication.logger.error(e.getMessage());
-                        }
-                    }
+                    messagingStrategy = context.getBean(StaticAnswerStrategy.class);
+                    telegramMessage = messagingStrategy.messageConstruct(update);
                     break;
             }
 
-            invokeCallback(currentDialogue, currentStep);
+            try {
+                sendMessage(telegramMessage.getSendMessageEntity());
+            } catch (TelegramApiException e) {
+                MallratbotApplication.logger.error(e.getMessage());
+            }
         }
     }
 
